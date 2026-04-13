@@ -264,37 +264,71 @@ export default function PsychicProfileScreen() {
           </View>
         </View>
 
-        {/* Recorded Video Section */}
+        {/* Recorded Video Section - App Only */}
         {psychic.offers_video && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Recorded Video Answer</Text>
-            <Text style={styles.sectionSubtitle}>Submit your question and get a detailed video response</Text>
-            <View style={styles.recordedVideoOptions}>
-              <TouchableOpacity style={styles.videoOption} onPress={() => handleRequestVideo('standard')}>
-                <View style={styles.videoOptionHeader}>
-                  <View style={[styles.serviceIconBg, { backgroundColor: COLORS.secondary + '20' }]}>
-                    <Ionicons name="time" size={20} color={COLORS.secondary} />
+            <Text style={styles.sectionSubtitle}>Get a detailed personalized video response to your question</Text>
+            
+            {/* Install App Banner */}
+            <View style={styles.installAppBanner}>
+              <LinearGradient
+                colors={['#6B46C1', '#9B7BD4']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.installAppGradient}
+              >
+                <View style={styles.installAppContent}>
+                  <View style={styles.installAppIconContainer}>
+                    <Ionicons name="phone-portrait-outline" size={32} color="#FFFFFF" />
                   </View>
-                  <View style={styles.videoOptionInfo}>
-                    <Text style={styles.videoOptionTitle}>Standard Delivery</Text>
-                    <Text style={styles.videoOptionDesc}>Up to 5 min video • 24 hour delivery</Text>
-                  </View>
-                </View>
-                <Text style={styles.videoOptionPrice}>$12</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity style={[styles.videoOption, styles.videoOptionUrgent]} onPress={() => handleRequestVideo('emergency')}>
-                <View style={styles.videoOptionHeader}>
-                  <View style={[styles.serviceIconBg, { backgroundColor: COLORS.error + '20' }]}>
-                    <Ionicons name="flash" size={20} color={COLORS.error} />
-                  </View>
-                  <View style={styles.videoOptionInfo}>
-                    <Text style={styles.videoOptionTitle}>Emergency Delivery</Text>
-                    <Text style={styles.videoOptionDesc}>Up to 5 min video • 1 hour delivery</Text>
+                  <View style={styles.installAppTextContainer}>
+                    <Text style={styles.installAppTitle}>Available on Mobile App</Text>
+                    <Text style={styles.installAppDesc}>
+                      Install our app to request recorded video readings from psychics
+                    </Text>
                   </View>
                 </View>
-                <Text style={[styles.videoOptionPrice, { color: COLORS.error }]}>$20</Text>
-              </TouchableOpacity>
+                
+                <View style={styles.installAppButtons}>
+                  <TouchableOpacity 
+                    style={styles.appStoreButton}
+                    onPress={() => {
+                      // TODO: Replace with actual App Store URL
+                      Alert.alert('Coming Soon', 'App will be available on the App Store soon!');
+                    }}
+                  >
+                    <Ionicons name="logo-apple" size={20} color="#FFFFFF" />
+                    <Text style={styles.appStoreButtonText}>App Store</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity 
+                    style={styles.playStoreButton}
+                    onPress={() => {
+                      // TODO: Replace with actual Play Store URL
+                      Alert.alert('Coming Soon', 'App will be available on Google Play soon!');
+                    }}
+                  >
+                    <Ionicons name="logo-google-playstore" size={20} color="#FFFFFF" />
+                    <Text style={styles.appStoreButtonText}>Google Play</Text>
+                  </TouchableOpacity>
+                </View>
+                
+                <View style={styles.installAppFeatures}>
+                  <View style={styles.installAppFeature}>
+                    <Ionicons name="checkmark-circle" size={16} color="#90EE90" />
+                    <Text style={styles.installAppFeatureText}>5-min personalized videos</Text>
+                  </View>
+                  <View style={styles.installAppFeature}>
+                    <Ionicons name="checkmark-circle" size={16} color="#90EE90" />
+                    <Text style={styles.installAppFeatureText}>24hr or 1hr delivery</Text>
+                  </View>
+                  <View style={styles.installAppFeature}>
+                    <Ionicons name="checkmark-circle" size={16} color="#90EE90" />
+                    <Text style={styles.installAppFeatureText}>Save & rewatch anytime</Text>
+                  </View>
+                </View>
+              </LinearGradient>
             </View>
           </View>
         )}
@@ -724,5 +758,88 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontSize: 16,
     fontWeight: '700',
+  },
+  // Install App Banner Styles
+  installAppBanner: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    marginTop: SPACING.sm,
+  },
+  installAppGradient: {
+    padding: SPACING.lg,
+  },
+  installAppContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: SPACING.md,
+  },
+  installAppIconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: SPACING.md,
+  },
+  installAppTextContainer: {
+    flex: 1,
+  },
+  installAppTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    marginBottom: 4,
+  },
+  installAppDesc: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.85)',
+    lineHeight: 18,
+  },
+  installAppButtons: {
+    flexDirection: 'row',
+    gap: SPACING.sm,
+    marginBottom: SPACING.md,
+  },
+  appStoreButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    gap: 8,
+  },
+  playStoreButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    gap: 8,
+  },
+  appStoreButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  installAppFeatures: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: SPACING.sm,
+  },
+  installAppFeature: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  installAppFeatureText: {
+    color: 'rgba(255,255,255,0.9)',
+    fontSize: 12,
   },
 });

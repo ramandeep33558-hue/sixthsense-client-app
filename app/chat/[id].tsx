@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -19,6 +19,8 @@ import { COLORS, SPACING } from '../../src/constants/theme';
 import { useAuth } from '../../src/context/AuthContext';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
+// WebSocket URL - convert http to ws
+const WS_URL = BACKEND_URL?.replace('https://', 'wss://').replace('http://', 'ws://');
 
 interface Message {
   id: string;
@@ -42,6 +44,12 @@ export default function ChatScreen() {
   const [showAddTimeModal, setShowAddTimeModal] = useState(false);
   const [hasShownWarning, setHasShownWarning] = useState(false);
   const [totalSpent, setTotalSpent] = useState(0);
+  const [isTyping, setIsTyping] = useState(false);
+  const [psychicIsTyping, setPsychicIsTyping] = useState(false);
+  
+  // WebSocket ref
+  const wsRef = useRef<WebSocket | null>(null);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   // Free 4 minutes for new users
   const [isNewUser, setIsNewUser] = useState(user?.is_new_user ?? false);
@@ -52,6 +60,77 @@ export default function ChatScreen() {
 
   const chatRate = parseFloat(rate as string || '3.99');
   const balance = user?.balance || 0;
+  
+  const conversationId = id as string;
+
+  // Connect to WebSocket
+  useEffect(() => {
+    if (!user?.id) return;
+    
+    const connectWebSocket = () => {
+      try {
+        const wsUrl = `${WS_URL}/api/ws/${user.id}`;
+        wsRef.current = new WebSocket(wsUrl);
+        
+        wsRef.current.onopen = () => {
+          console.log('WebSocket connected');
+          // Join the conversation
+          wsRef.current?.send(JSON.stringify({
+            type: 'join_conversation',
+            conversation_id: conversationId
+          }));
+        };
+        
+        wsRef.current.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            
+            if (data.type === 'new_message') {
+              // Received a new message from psychic
+              const msg = data.message;
+              const newMsg: Message = {
+                id: msg.id,
+                text: msg.content,
+                sender: msg.sender_id === user.id ? 'client' : 'psychic',
+                timestamp: new Date(msg.created_at),
+              };
+              setMessages(prev => [...prev, newMsg]);
+              setPsychicIsTyping(false);
+            } else if (data.type === 'typing_indicator') {
+              // Psychic is typing
+              if (data.user_id !== user.id) {
+                setPsychicIsTyping(data.is_typing);
+              }
+            } else if (data.type === 'message_sent') {
+              console.log('Message delivered:', data.message_id);
+            }
+          } catch (e) {
+            console.error('Error parsing WS message:', e);
+          }
+        };
+        
+        wsRef.current.onerror = (error) => {
+          console.error('WebSocket error:', error);
+        };
+        
+        wsRef.current.onclose = () => {
+          console.log('WebSocket closed');
+          // Reconnect after 3 seconds
+          setTimeout(connectWebSocket, 3000);
+        };
+      } catch (e) {
+        console.error('WebSocket connection error:', e);
+      }
+    };
+    
+    connectWebSocket();
+    
+    return () => {
+      if (wsRef.current) {
+        wsRef.current.close();
+      }
+    };
+  }, [user?.id, conversationId]);
 
   // Fetch psychic info
   useEffect(() => {
@@ -241,25 +320,85 @@ export default function ChatScreen() {
   const sendMessage = () => {
     if (!inputText.trim() || !isSessionActive) return;
     
+    const messageText = inputText.trim();
+    const messageId = Date.now().toString();
+    
+    // Add message to local state immediately for better UX
     const newMessage: Message = {
-      id: Date.now().toString(),
-      text: inputText.trim(),
+      id: messageId,
+      text: messageText,
       sender: 'client',
       timestamp: new Date(),
     };
     setMessages(prev => [...prev, newMessage]);
     setInputText('');
     
-    // Simulate psychic response (in real app, this would be socket.io)
-    setTimeout(() => {
-      const response: Message = {
-        id: (Date.now() + 1).toString(),
-        text: "Thank you for sharing. I'm sensing strong energies around your question. Let me focus on this for you...",
-        sender: 'psychic',
-        timestamp: new Date(),
-      };
-      setMessages(prev => [...prev, response]);
-    }, 2000);
+    // Send via WebSocket
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({
+        type: 'message',
+        conversation_id: conversationId,
+        receiver_id: psychicId,
+        content: messageText,
+      }));
+      
+      // Stop typing indicator
+      wsRef.current.send(JSON.stringify({
+        type: 'typing',
+        conversation_id: conversationId,
+        receiver_id: psychicId,
+        is_typing: false,
+      }));
+    } else {
+      // Fallback to HTTP if WebSocket not connected
+      sendMessageViaHttp(messageText, messageId);
+    }
+  };
+  
+  const sendMessageViaHttp = async (content: string, messageId: string) => {
+    try {
+      await fetch(`${BACKEND_URL}/api/messages/send`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          conversation_id: conversationId,
+          sender_id: user?.id,
+          receiver_id: psychicId,
+          content: content,
+        }),
+      });
+    } catch (e) {
+      console.error('Error sending message via HTTP:', e);
+    }
+  };
+  
+  const handleInputChange = (text: string) => {
+    setInputText(text);
+    
+    // Send typing indicator
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({
+        type: 'typing',
+        conversation_id: conversationId,
+        receiver_id: psychicId,
+        is_typing: text.length > 0,
+      }));
+      
+      // Clear typing after 3 seconds of no typing
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+      typingTimeoutRef.current = setTimeout(() => {
+        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+          wsRef.current.send(JSON.stringify({
+            type: 'typing',
+            conversation_id: conversationId,
+            receiver_id: psychicId,
+            is_typing: false,
+          }));
+        }
+      }, 3000);
+    }
   };
 
   const handleEndSession = () => {
@@ -356,6 +495,13 @@ export default function ChatScreen() {
             </Text>
           </View>
         ))}
+        
+        {/* Typing Indicator */}
+        {psychicIsTyping && (
+          <View style={[styles.messageBubble, styles.psychicMessage, styles.typingBubble]}>
+            <Text style={styles.typingText}>{psychic?.name || 'Psychic'} is typing...</Text>
+          </View>
+        )}
       </ScrollView>
 
       {/* Add Time Modal */}
@@ -417,7 +563,7 @@ export default function ChatScreen() {
               placeholder="Type a message..."
               placeholderTextColor={COLORS.textMuted}
               value={inputText}
-              onChangeText={setInputText}
+              onChangeText={handleInputChange}
               multiline
             />
             <TouchableOpacity
@@ -708,5 +854,14 @@ const styles = StyleSheet.create({
     color: COLORS.error,
     fontSize: 12,
     fontWeight: '600',
+  },
+  typingBubble: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  typingText: {
+    color: COLORS.textMuted,
+    fontSize: 13,
+    fontStyle: 'italic',
   },
 });
