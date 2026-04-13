@@ -17,6 +17,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.sixthsense.psychics",
       "buildNumber": "1",
+      "usesAppleSignIn": true,
       "infoPlist": {
         "NSCameraUsageDescription": "Video calls with psychic advisors",
         "NSMicrophoneUsageDescription": "Voice and video calls with advisors",
@@ -71,6 +72,7 @@
       "expo-router",
       "expo-font",
       "expo-secure-store",
+      "expo-apple-authentication",
       [
         "expo-notifications",
         {

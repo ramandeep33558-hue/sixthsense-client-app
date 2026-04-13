@@ -24,6 +24,7 @@ interface AuthContextType {
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, name: string, birthDate?: string) => Promise<void>;
+  socialLogin: (accessToken: string, userData: User) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
   updateUser: (userData: Partial<User>) => Promise<void>;
@@ -101,6 +102,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // Social login (Google/Apple) - token and user data already provided from auth flow
+  const socialLogin = async (accessToken: string, userData: User) => {
+    try {
+      await AsyncStorage.setItem('auth_token', accessToken);
+      await AsyncStorage.setItem('user', JSON.stringify(userData));
+      setToken(accessToken);
+      setUser(userData);
+    } catch (error) {
+      console.error('Social login storage error:', error);
+      throw error;
+    }
+  };
+
   const logout = async () => {
     await AsyncStorage.removeItem('auth_token');
     await AsyncStorage.removeItem('user');
@@ -134,7 +148,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, isLoading, login, register, logout, refreshUser, updateUser }}>
+    <AuthContext.Provider value={{ user, token, isLoading, login, register, socialLogin, logout, refreshUser, updateUser }}>
       {children}
     </AuthContext.Provider>
   );

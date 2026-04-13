@@ -46,7 +46,7 @@ interface Conversation {
   remaining_messages: number;
 }
 
-type MainTab = 'readings' | 'messages';
+type MainTab = 'readings' | 'messages' | 'history';
 type StatusFilter = 'all' | 'pending' | 'completed' | 'cancelled';
 
 export default function ReadingsScreen() {
@@ -252,6 +252,16 @@ export default function ReadingsScreen() {
             </View>
           )}
         </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.mainTab, mainTab === 'history' && { borderBottomColor: colors.primary, borderBottomWidth: 2 }]}
+          onPress={() => setMainTab('history')}
+        >
+          <Ionicons name="time" size={18} color={mainTab === 'history' ? colors.primary : colors.textMuted} />
+          <Text style={[styles.mainTabText, { color: mainTab === 'history' ? colors.primary : colors.textMuted }]}>
+            History
+          </Text>
+        </TouchableOpacity>
       </View>
 
       {/* Status Filter Pills - Only for Readings */}
@@ -333,7 +343,7 @@ export default function ReadingsScreen() {
               </TouchableOpacity>
             ))
           )
-        ) : (
+        ) : mainTab === 'messages' ? (
           // Messages List
           getFilteredConversations().length === 0 ? (
             <View style={styles.emptyState}>
@@ -381,6 +391,72 @@ export default function ReadingsScreen() {
               </TouchableOpacity>
             ))
           )
+        ) : (
+          // History Section - Navigate to full history screen
+          <View style={styles.historySection}>
+            <Text style={[styles.historySectionTitle, { color: colors.textPrimary }]}>
+              View Your Complete History
+            </Text>
+            <Text style={[styles.historySectionDesc, { color: colors.textSecondary }]}>
+              Access recordings of all your past chats, phone calls, video calls, and recorded readings.
+            </Text>
+            
+            <TouchableOpacity
+              style={[styles.historyOptionCard, { backgroundColor: colors.backgroundCard, borderColor: colors.border }]}
+              onPress={() => router.push('/history')}
+            >
+              <View style={[styles.historyOptionIcon, { backgroundColor: colors.primary + '15' }]}>
+                <Ionicons name="chatbubbles" size={24} color={colors.primary} />
+              </View>
+              <View style={styles.historyOptionInfo}>
+                <Text style={[styles.historyOptionTitle, { color: colors.textPrimary }]}>Chat History</Text>
+                <Text style={[styles.historyOptionDesc, { color: colors.textMuted }]}>View all past chat conversations</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.historyOptionCard, { backgroundColor: colors.backgroundCard, borderColor: colors.border }]}
+              onPress={() => router.push({ pathname: '/history', params: { tab: 'calls' } })}
+            >
+              <View style={[styles.historyOptionIcon, { backgroundColor: colors.success + '15' }]}>
+                <Ionicons name="call" size={24} color={colors.success} />
+              </View>
+              <View style={styles.historyOptionInfo}>
+                <Text style={[styles.historyOptionTitle, { color: colors.textPrimary }]}>Phone Call Recordings</Text>
+                <Text style={[styles.historyOptionDesc, { color: colors.textMuted }]}>Listen to past phone readings</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.historyOptionCard, { backgroundColor: colors.backgroundCard, borderColor: colors.border }]}
+              onPress={() => router.push({ pathname: '/history', params: { tab: 'videos' } })}
+            >
+              <View style={[styles.historyOptionIcon, { backgroundColor: colors.info + '15' }]}>
+                <Ionicons name="videocam" size={24} color={colors.info} />
+              </View>
+              <View style={styles.historyOptionInfo}>
+                <Text style={[styles.historyOptionTitle, { color: colors.textPrimary }]}>Video Call Recordings</Text>
+                <Text style={[styles.historyOptionDesc, { color: colors.textMuted }]}>Watch past video readings</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.historyOptionCard, { backgroundColor: colors.backgroundCard, borderColor: colors.border }]}
+              onPress={() => router.push({ pathname: '/history', params: { tab: 'recorded' } })}
+            >
+              <View style={[styles.historyOptionIcon, { backgroundColor: colors.warning + '15' }]}>
+                <Ionicons name="film" size={24} color={colors.warning} />
+              </View>
+              <View style={styles.historyOptionInfo}>
+                <Text style={[styles.historyOptionTitle, { color: colors.textPrimary }]}>Recorded Readings</Text>
+                <Text style={[styles.historyOptionDesc, { color: colors.textMuted }]}>Watch pre-recorded psychic answers</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
+            </TouchableOpacity>
+          </View>
         )}
         <View style={{ height: 100 }} />
       </ScrollView>
@@ -448,4 +524,27 @@ const styles = StyleSheet.create({
   psychicName: { fontSize: 14, fontWeight: '600' },
   timeText: { fontSize: 11 },
   lastMessage: { fontSize: 12 },
+  // History Section Styles
+  historySection: { paddingTop: SPACING.md },
+  historySectionTitle: { fontSize: 18, fontWeight: '700', marginBottom: SPACING.xs },
+  historySectionDesc: { fontSize: 13, marginBottom: SPACING.lg, lineHeight: 18 },
+  historyOptionCard: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    padding: SPACING.md, 
+    borderRadius: 12, 
+    borderWidth: 1, 
+    marginBottom: SPACING.sm,
+    gap: SPACING.md,
+  },
+  historyOptionIcon: { 
+    width: 48, 
+    height: 48, 
+    borderRadius: 12, 
+    justifyContent: 'center', 
+    alignItems: 'center' 
+  },
+  historyOptionInfo: { flex: 1 },
+  historyOptionTitle: { fontSize: 15, fontWeight: '600', marginBottom: 2 },
+  historyOptionDesc: { fontSize: 12 },
 });

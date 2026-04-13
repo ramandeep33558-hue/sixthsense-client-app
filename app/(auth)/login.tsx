@@ -18,6 +18,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as AppleAuthentication from 'expo-apple-authentication';
+import * as WebBrowser from 'expo-web-browser';
 import { COLORS, SPACING } from '../../src/constants/theme';
 import { useAuth } from '../../src/context/AuthContext';
 
@@ -29,22 +31,39 @@ const VIDEO_URL = 'https://assets.mixkit.co/videos/preview/mixkit-stars-in-space
 // App logo
 const APP_LOGO_URL = "https://customer-assets.emergentagent.com/job_42069a8a-9a70-44df-94f4-f6571c6ab514/artifacts/ficttj0r_IMG_4688.jpeg";
 
+// Backend URL from env
+const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
+
+// Ensure WebBrowser redirect completes properly
+WebBrowser.maybeCompleteAuthSession();
+
 export default function LoginScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { login } = useAuth();
+  const { login, socialLogin } = useAuth();
   const videoRef = useRef<Video>(null);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isAppleAvailable, setIsAppleAvailable] = useState(false);
 
   useEffect(() => {
     if (videoRef.current) {
       videoRef.current.playAsync();
     }
+    
+    // Check if Apple Sign-In is available (iOS only)
+    checkAppleAvailability();
   }, []);
+
+  const checkAppleAvailability = async () => {
+    if (Platform.OS === 'ios') {
+      const available = await AppleAuthentication.isAvailableAsync();
+      setIsAppleAvailable(available);
+    }
+  };
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -58,6 +77,128 @@ export default function LoginScreen() {
       router.replace('/(tabs)/home');
     } catch (error: any) {
       Alert.alert('Login Failed', error.message || 'Please check your credentials');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // GOOGLE SIGN-IN with Emergent OAuth
+  // REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
+  const handleGoogleSignIn = async () => {
+    setIsLoading(true);
+    try {
+      // Build the redirect URL dynamically
+      const redirectUrl = Platform.OS === 'web' 
+        ? `${window.location.origin}/auth-callback`
+        : `${BACKEND_URL}/auth-callback`;
+      
+      // Open the Emergent OAuth page in a browser
+      const authUrl = `https://auth.emergentagent.com/?redirect=${encodeURIComponent(redirectUrl)}`;
+      
+      if (Platform.OS === 'web') {
+        // For web, redirect the entire page
+        window.location.href = authUrl;
+      } else {
+        // For native, use WebBrowser
+        const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUrl);
+        
+        if (result.type === 'success' && result.url) {
+          // Extract session_id from the URL fragment
+          const urlObj = new URL(result.url);
+          const hash = urlObj.hash;
+          const sessionId = hash?.match(/session_id=([^&]+)/)?.[1];
+          
+          if (sessionId) {
+            await processGoogleSession(sessionId);
+          } else {
+            throw new Error('No session ID received');
+          }
+        } else if (result.type === 'cancel') {
+          // User cancelled
+          setIsLoading(false);
+          return;
+        }
+      }
+    } catch (error: any) {
+      console.error('Google Sign-In error:', error);
+      Alert.alert('Google Sign-In Failed', error.message || 'Please try again');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const processGoogleSession = async (sessionId: string) => {
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/auth/google/session`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: sessionId }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Failed to verify Google session');
+      }
+      
+      const data = await response.json();
+      
+      // Use the socialLogin function from AuthContext
+      await socialLogin(data.access_token, data.user);
+      router.replace('/(tabs)/home');
+    } catch (error: any) {
+      console.error('Google session processing error:', error);
+      throw error;
+    }
+  };
+
+  // APPLE SIGN-IN (iOS only)
+  const handleAppleSignIn = async () => {
+    if (Platform.OS !== 'ios') {
+      Alert.alert('Apple Sign-In', 'Apple Sign-In is only available on iOS devices.');
+      return;
+    }
+    
+    setIsLoading(true);
+    try {
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+      });
+      
+      // Send to backend for verification
+      const response = await fetch(`${BACKEND_URL}/api/auth/apple/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          identity_token: credential.identityToken,
+          user: credential.user,
+          name: credential.fullName 
+            ? `${credential.fullName.givenName || ''} ${credential.fullName.familyName || ''}`.trim()
+            : null,
+          email: credential.email,
+        }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Failed to verify Apple credentials');
+      }
+      
+      const data = await response.json();
+      
+      // Use the socialLogin function from AuthContext
+      await socialLogin(data.access_token, data.user);
+      router.replace('/(tabs)/home');
+    } catch (error: any) {
+      if (error.code === 'ERR_REQUEST_CANCELED') {
+        // User cancelled - don't show error
+        setIsLoading(false);
+        return;
+      }
+      console.error('Apple Sign-In error:', error);
+      Alert.alert('Apple Sign-In Failed', error.message || 'Please try again');
     } finally {
       setIsLoading(false);
     }
@@ -183,15 +324,21 @@ export default function LoginScreen() {
           <View style={styles.socialButtons}>
             <TouchableOpacity 
               style={styles.socialButton}
-              onPress={() => Alert.alert('Coming Soon', 'Google Sign-In is coming soon. Please use email to sign up for now.')}
+              onPress={handleGoogleSignIn}
+              disabled={isLoading}
             >
               <Ionicons name="logo-google" size={22} color="#FFFFFF" />
               <Text style={styles.socialButtonText}>Google</Text>
             </TouchableOpacity>
 
+            {/* Apple Sign-In - only show on iOS when available, or as disabled on web */}
             <TouchableOpacity 
-              style={styles.socialButton}
-              onPress={() => Alert.alert('Coming Soon', 'Apple Sign-In is coming soon. Please use email to sign up for now.')}
+              style={[
+                styles.socialButton,
+                (Platform.OS !== 'ios' || !isAppleAvailable) && styles.socialButtonDisabled
+              ]}
+              onPress={handleAppleSignIn}
+              disabled={isLoading || (Platform.OS !== 'ios')}
             >
               <Ionicons name="logo-apple" size={22} color="#FFFFFF" />
               <Text style={styles.socialButtonText}>Apple</Text>
@@ -367,6 +514,9 @@ const styles = StyleSheet.create({
     gap: 8,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.1)',
+  },
+  socialButtonDisabled: {
+    opacity: 0.5,
   },
   socialButtonText: {
     color: '#FFFFFF',
