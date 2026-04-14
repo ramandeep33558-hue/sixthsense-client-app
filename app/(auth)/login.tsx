@@ -48,15 +48,18 @@ export default function LoginScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isAppleAvailable, setIsAppleAvailable] = useState(false);
+  const [videoError, setVideoError] = useState(false);
 
   useEffect(() => {
-    if (videoRef.current) {
-      videoRef.current.playAsync();
+    if (videoRef.current && !videoError) {
+      videoRef.current.playAsync().catch(() => {
+        setVideoError(true);
+      });
     }
     
     // Check if Apple Sign-In is available (iOS only)
     checkAppleAvailability();
-  }, []);
+  }, [videoError]);
 
   const checkAppleAvailability = async () => {
     if (Platform.OS === 'ios') {
@@ -206,16 +209,24 @@ export default function LoginScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Video Background */}
-      <Video
-        ref={videoRef}
-        source={{ uri: VIDEO_URL }}
-        style={styles.backgroundVideo}
-        resizeMode={ResizeMode.COVER}
-        shouldPlay
-        isLooping
-        isMuted
-      />
+      {/* Video Background or Fallback Gradient */}
+      {!videoError ? (
+        <Video
+          ref={videoRef}
+          source={{ uri: VIDEO_URL }}
+          style={styles.backgroundVideo}
+          resizeMode={ResizeMode.COVER}
+          shouldPlay
+          isLooping
+          isMuted
+          onError={() => setVideoError(true)}
+        />
+      ) : (
+        <LinearGradient
+          colors={['#1a1a2e', '#16213e', '#0f3460', '#1a1a2e']}
+          style={styles.backgroundVideo}
+        />
+      )}
 
       {/* Dark Overlay */}
       <LinearGradient

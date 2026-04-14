@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { 
   View, 
   Text, 
@@ -27,26 +27,37 @@ export default function WelcomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const videoRef = useRef<Video>(null);
+  const [videoError, setVideoError] = useState(false);
 
   useEffect(() => {
     // Auto-play video when component mounts
-    if (videoRef.current) {
-      videoRef.current.playAsync();
+    if (videoRef.current && !videoError) {
+      videoRef.current.playAsync().catch(() => {
+        setVideoError(true);
+      });
     }
-  }, []);
+  }, [videoError]);
 
   return (
     <View style={styles.container}>
-      {/* Video Background */}
-      <Video
-        ref={videoRef}
-        source={{ uri: VIDEO_URL }}
-        style={styles.backgroundVideo}
-        resizeMode={ResizeMode.COVER}
-        shouldPlay
-        isLooping
-        isMuted
-      />
+      {/* Video Background or Fallback Gradient */}
+      {!videoError ? (
+        <Video
+          ref={videoRef}
+          source={{ uri: VIDEO_URL }}
+          style={styles.backgroundVideo}
+          resizeMode={ResizeMode.COVER}
+          shouldPlay
+          isLooping
+          isMuted
+          onError={() => setVideoError(true)}
+        />
+      ) : (
+        <LinearGradient
+          colors={['#1a1a2e', '#16213e', '#0f3460', '#1a1a2e']}
+          style={styles.backgroundVideo}
+        />
+      )}
 
       {/* Dark Overlay for better readability */}
       <LinearGradient

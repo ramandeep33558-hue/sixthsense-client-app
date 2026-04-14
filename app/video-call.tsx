@@ -7,7 +7,6 @@ import {
   Alert,
   Platform,
   Dimensions,
-  PermissionsAndroid,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -16,15 +15,12 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { SPACING } from '../src/constants/theme';
 import { useTheme } from '../src/context/ThemeContext';
 import { useAuth } from '../src/context/AuthContext';
-import createAgoraRtcEngine, {
-  IRtcEngine,
-  ChannelProfileType,
-  ClientRoleType,
-  RtcSurfaceView,
-} from 'react-native-agora';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
 const { width, height } = Dimensions.get('window');
+
+// Check if we're on web
+const isWeb = Platform.OS === 'web';
 
 export default function VideoCallScreen() {
   const router = useRouter();
@@ -35,7 +31,7 @@ export default function VideoCallScreen() {
   
   const psychicId = params.psychicId as string;
   const psychicName = params.psychicName as string || 'Advisor';
-  const callType = params.callType as string || 'video'; // video or voice
+  const callType = params.callType as string || 'video';
   const rate = parseFloat(params.rate as string || '4.99');
   
   const [callStatus, setCallStatus] = useState<'connecting' | 'ringing' | 'connected' | 'ended'>('connecting');
@@ -48,149 +44,19 @@ export default function VideoCallScreen() {
   const [freeMinutesRemaining, setFreeMinutesRemaining] = useState(
     isNewClient && !user?.first_reading_free_used ? 4 * 60 : 0
   );
-  const [remoteUid, setRemoteUid] = useState<number | null>(null);
-  const [agoraEngine, setAgoraEngine] = useState<IRtcEngine | null>(null);
-  const [agoraAppId, setAgoraAppId] = useState<string>('');
-  const [channelName, setChannelName] = useState<string>('');
-  const [localUid, setLocalUid] = useState<number>(0);
   
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Request permissions for camera and microphone
-  const requestPermissions = async () => {
-    if (Platform.OS === 'android') {
-      try {
-        const granted = await PermissionsAndroid.requestMultiple([
-          PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
-          PermissionsAndroid.PERMISSIONS.CAMERA,
-        ]);
-        return (
-          granted['android.permission.RECORD_AUDIO'] === PermissionsAndroid.RESULTS.GRANTED &&
-          granted['android.permission.CAMERA'] === PermissionsAndroid.RESULTS.GRANTED
-        );
-      } catch (err) {
-        console.warn(err);
-        return false;
-      }
-    }
-    return true;
-  };
-
   useEffect(() => {
-    initializeAgora();
+    // Start simulated call (works on all platforms)
+    initiateSimulatedCall();
+    
     return () => {
-      cleanupAgora();
       if (timerRef.current) clearInterval(timerRef.current);
     };
   }, []);
 
-  const initializeAgora = async () => {
-    try {
-      // Request permissions
-      const hasPermission = await requestPermissions();
-      if (!hasPermission) {
-        Alert.alert('Permission Error', 'Camera and microphone permissions are required for video calls.');
-        router.back();
-        return;
-      }
-
-      // Get video config from backend
-      const configRes = await fetch(`${BACKEND_URL}/api/video/config`);
-      const config = await configRes.json();
-      
-      if (!config.agora_enabled) {
-        // Fallback to simulated call if Agora not configured
-        initiateSimulatedCall();
-        return;
-      }
-
-      setAgoraAppId(config.app_id);
-
-      // Initialize Agora engine
-      const engine = createAgoraRtcEngine();
-      engine.initialize({
-        appId: config.app_id,
-        channelProfile: ChannelProfileType.ChannelProfileCommunication,
-      });
-
-      // Set up event handlers
-      engine.registerEventHandler({
-        onJoinChannelSuccess: (_connection, elapsed) => {
-          console.log('Successfully joined channel');
-          setCallStatus('connected');
-        },
-        onUserJoined: (_connection, uid, elapsed) => {
-          console.log('Remote user joined:', uid);
-          setRemoteUid(uid);
-          setCallStatus('connected');
-        },
-        onUserOffline: (_connection, uid, reason) => {
-          console.log('Remote user left:', uid);
-          setRemoteUid(null);
-          // End call if remote user left
-          endCall();
-        },
-        onError: (err, msg) => {
-          console.error('Agora error:', err, msg);
-        },
-      });
-
-      // Enable video if video call
-      if (callType === 'video') {
-        engine.enableVideo();
-        engine.startPreview();
-      }
-
-      setAgoraEngine(engine);
-      
-      // Now initiate the call
-      await initiateCall(engine, config.app_id);
-    } catch (error) {
-      console.error('Failed to initialize Agora:', error);
-      // Fallback to simulated call
-      initiateSimulatedCall();
-    }
-  };
-
-  const initiateCall = async (engine: IRtcEngine, appId: string) => {
-    try {
-      setCallStatus('connecting');
-      
-      const response = await fetch(`${BACKEND_URL}/api/video/initiate-call`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          caller_id: user?.id,
-          callee_id: psychicId,
-          call_type: callType,
-          psychic_id: psychicId,
-        }),
-      });
-      
-      const data = await response.json();
-      setCallId(data.call_id);
-      setChannelName(data.channel_name);
-      
-      // Calculate local UID (should match backend calculation)
-      const uid = Math.abs(hashCode(user?.id || '')) % 100000;
-      setLocalUid(uid);
-      
-      setCallStatus('ringing');
-      
-      // Join the Agora channel
-      engine.joinChannel(data.caller_token, data.channel_name, uid, {
-        clientRoleType: ClientRoleType.ClientRoleBroadcaster,
-      });
-      
-    } catch (error) {
-      console.error('Failed to initiate call:', error);
-      Alert.alert('Connection Error', 'Failed to connect the call. Please try again.');
-      router.back();
-    }
-  };
-
   const initiateSimulatedCall = async () => {
-    // Fallback for when Agora is not available (web preview, etc.)
     try {
       setCallStatus('connecting');
       
@@ -218,30 +84,11 @@ export default function VideoCallScreen() {
     }
   };
 
-  const cleanupAgora = async () => {
-    if (agoraEngine) {
-      await agoraEngine.leaveChannel();
-      agoraEngine.release();
-    }
-  };
-
-  // Simple hash function for generating UIDs
-  const hashCode = (str: string): number => {
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-      const char = str.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
-      hash = hash & hash;
-    }
-    return hash;
-  };
-
   useEffect(() => {
     if (callStatus === 'connected') {
       timerRef.current = setInterval(() => {
         setDuration(prev => prev + 1);
         
-        // Track free minutes
         if (freeMinutesRemaining > 0) {
           setFreeMinutesRemaining(prev => {
             if (prev <= 1) {
@@ -270,9 +117,6 @@ export default function VideoCallScreen() {
     if (timerRef.current) clearInterval(timerRef.current);
     setCallStatus('ended');
     
-    // Leave Agora channel
-    await cleanupAgora();
-    
     if (callId) {
       try {
         await fetch(`${BACKEND_URL}/api/video/call/${callId}/end`, {
@@ -283,7 +127,6 @@ export default function VideoCallScreen() {
       }
     }
     
-    // Navigate to review screen
     setTimeout(() => {
       router.replace({
         pathname: '/session-review',
@@ -298,32 +141,9 @@ export default function VideoCallScreen() {
     }, 1000);
   };
 
-  const toggleMute = () => {
-    if (agoraEngine) {
-      agoraEngine.muteLocalAudioStream(!isMuted);
-    }
-    setIsMuted(!isMuted);
-  };
-
-  const toggleCamera = () => {
-    if (agoraEngine && callType === 'video') {
-      agoraEngine.muteLocalVideoStream(!isCameraOff);
-    }
-    setIsCameraOff(!isCameraOff);
-  };
-
-  const toggleSpeaker = () => {
-    if (agoraEngine) {
-      agoraEngine.setEnableSpeakerphone(!isSpeakerOn);
-    }
-    setIsSpeakerOn(!isSpeakerOn);
-  };
-
-  const switchCamera = () => {
-    if (agoraEngine) {
-      agoraEngine.switchCamera();
-    }
-  };
+  const toggleMute = () => setIsMuted(!isMuted);
+  const toggleCamera = () => setIsCameraOff(!isCameraOff);
+  const toggleSpeaker = () => setIsSpeakerOn(!isSpeakerOn);
 
   const calculateCost = () => {
     const billableSeconds = Math.max(0, duration - (isNewClient ? 4 * 60 : 0));
@@ -355,42 +175,34 @@ export default function VideoCallScreen() {
     <View style={[styles.container, { backgroundColor: '#1a1a2e' }]}>
       {/* Video/Avatar Area */}
       <View style={styles.videoArea}>
-        {/* Remote Video */}
-        {callType === 'video' && remoteUid && agoraEngine ? (
-          <RtcSurfaceView
-            style={styles.remoteVideo}
-            canvas={{ uid: remoteUid }}
-          />
-        ) : (
-          <LinearGradient
-            colors={['#2d2d44', '#1a1a2e']}
-            style={styles.remoteVideo}
-          >
-            <View style={styles.avatarContainer}>
-              <View style={[styles.avatar, { backgroundColor: colors.primary }]}>
-                <Text style={styles.avatarText}>
-                  {psychicName.charAt(0).toUpperCase()}
-                </Text>
-              </View>
-              <Text style={styles.psychicName}>{psychicName}</Text>
-              <Text style={[styles.statusText, 
-                callStatus === 'connected' && { color: '#4CAF50' }
-              ]}>
-                {renderCallStatus()}
+        <LinearGradient
+          colors={['#2d2d44', '#1a1a2e']}
+          style={styles.remoteVideo}
+        >
+          <View style={styles.avatarContainer}>
+            <View style={[styles.avatar, { backgroundColor: colors.primary }]}>
+              <Text style={styles.avatarText}>
+                {psychicName.charAt(0).toUpperCase()}
               </Text>
             </View>
-          </LinearGradient>
-        )}
-
-        {/* Local Video (small preview) */}
-        {callType === 'video' && !isCameraOff && agoraEngine && (
-          <View style={styles.localVideoContainer}>
-            <RtcSurfaceView
-              style={styles.localVideo}
-              canvas={{ uid: 0 }}
-            />
+            <Text style={styles.psychicName}>{psychicName}</Text>
+            <Text style={[styles.statusText, 
+              callStatus === 'connected' && { color: '#4CAF50' }
+            ]}>
+              {renderCallStatus()}
+            </Text>
+            
+            {/* Web Notice */}
+            {isWeb && callStatus === 'connected' && (
+              <View style={styles.webNotice}>
+                <Ionicons name="information-circle" size={16} color="#FFD700" />
+                <Text style={styles.webNoticeText}>
+                  Full video calls available in the mobile app
+                </Text>
+              </View>
+            )}
           </View>
-        )}
+        </LinearGradient>
 
         {/* Rate Badge */}
         <View style={styles.rateBadge}>
@@ -416,7 +228,6 @@ export default function VideoCallScreen() {
 
       {/* Controls */}
       <View style={[styles.controls, { paddingBottom: insets.bottom + SPACING.md }]}>
-        {/* Control Buttons Row */}
         <View style={styles.controlsRow}>
           <TouchableOpacity 
             style={[styles.controlButton, isMuted && styles.controlButtonActive]}
@@ -461,16 +272,6 @@ export default function VideoCallScreen() {
               {isSpeakerOn ? 'Speaker' : 'Earpiece'}
             </Text>
           </TouchableOpacity>
-
-          {callType === 'video' && (
-            <TouchableOpacity 
-              style={styles.controlButton}
-              onPress={switchCamera}
-            >
-              <Ionicons name="camera-reverse" size={24} color="#FFFFFF" />
-              <Text style={styles.controlText}>Flip</Text>
-            </TouchableOpacity>
-          )}
         </View>
 
         {/* End Call Button */}
@@ -521,19 +322,19 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: 'rgba(255,255,255,0.7)',
   },
-  localVideoContainer: {
-    position: 'absolute',
-    top: 60,
-    right: SPACING.md,
-    width: 100,
-    height: 140,
-    borderRadius: 12,
-    overflow: 'hidden',
-    borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.3)',
+  webNotice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,215,0,0.1)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    marginTop: SPACING.lg,
+    gap: 6,
   },
-  localVideo: {
-    flex: 1,
+  webNoticeText: {
+    color: '#FFD700',
+    fontSize: 12,
   },
   rateBadge: {
     position: 'absolute',

@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
 import { COLORS, SPACING } from '../constants/theme';
 
 interface StartSessionModalProps {
@@ -33,6 +34,7 @@ export default function StartSessionModal({
   balance,
   serviceType,
 }: StartSessionModalProps) {
+  const router = useRouter();
   const [selectedMinutes, setSelectedMinutes] = useState<number | null>(null);
 
   const getRate = () => {
@@ -163,7 +165,13 @@ export default function StartSessionModal({
               </LinearGradient>
             </TouchableOpacity>
           ) : (
-            <TouchableOpacity style={styles.addFundsButton} onPress={onClose}>
+            <TouchableOpacity 
+              style={styles.addFundsButton} 
+              onPress={() => {
+                onClose();
+                router.push('/(tabs)/wallet');
+              }}
+            >
               <LinearGradient
                 colors={[COLORS.primary, COLORS.primaryDark]}
                 style={styles.startGradient}
