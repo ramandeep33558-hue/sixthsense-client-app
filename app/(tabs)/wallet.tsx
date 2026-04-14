@@ -283,15 +283,24 @@ export default function WalletScreen() {
         <View style={styles.paymentMethodsSection}>
           <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Payment Methods</Text>
           
-          <TouchableOpacity style={[styles.addPaymentButton, { backgroundColor: colors.backgroundCard, borderColor: colors.border }]}>
+          <TouchableOpacity 
+            style={[styles.addPaymentButton, { backgroundColor: colors.backgroundCard, borderColor: colors.border }]}
+            onPress={() => {
+              Alert.alert(
+                'Payment Methods',
+                'When you purchase credits, you can pay with:\n\n• Credit/Debit Card\n• Apple Pay\n• Google Pay\n\nYour payment info is securely processed by Stripe.',
+                [{ text: 'Got it', style: 'default' }]
+              );
+            }}
+          >
             <View style={[styles.addPaymentIcon, { backgroundColor: colors.backgroundElevated }]}>
-              <Ionicons name="add" size={24} color={colors.primary} />
+              <Ionicons name="card" size={24} color={colors.primary} />
             </View>
             <View style={styles.addPaymentText}>
-              <Text style={[styles.addPaymentTitle, { color: colors.textPrimary }]}>Add Payment Method</Text>
-              <Text style={[styles.addPaymentSubtitle, { color: colors.textSecondary }]}>Card, PayPal, or Apple Pay</Text>
+              <Text style={[styles.addPaymentTitle, { color: colors.textPrimary }]}>Secure Checkout</Text>
+              <Text style={[styles.addPaymentSubtitle, { color: colors.textSecondary }]}>Card, Apple Pay, or Google Pay</Text>
             </View>
-            <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
+            <Ionicons name="shield-checkmark" size={20} color="#4CAF50" />
           </TouchableOpacity>
         </View>
 
