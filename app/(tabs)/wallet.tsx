@@ -48,29 +48,43 @@ export default function WalletScreen() {
 
     setIsLoading(true);
     try {
-      const response = await fetch(`${BACKEND_URL}/api/wallet/add-funds?token=${token}`, {
+      // Create Stripe Checkout Session
+      const response = await fetch(`${BACKEND_URL}/api/payments/create-checkout-session`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount: credits }), // Add credits amount, not price
+        headers: { 
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          amount: amount * 100, // Stripe uses cents
+          credits: credits,
+          user_id: user?.id,
+          success_url: `${BACKEND_URL}/wallet?success=true`,
+          cancel_url: `${BACKEND_URL}/wallet?cancelled=true`,
+        }),
       });
-
-      if (!response.ok) {
-        throw new Error('Failed to add funds');
-      }
 
       const data = await response.json();
       
-      if (selectedPackage?.discount) {
-        Alert.alert('Success! 🎉', `You saved $${selectedPackage.originalPrice - selectedPackage.price}! ${credits} credits added to your wallet.`);
-      } else {
-        Alert.alert('Success! 🎉', `${credits} credits added to your wallet.`);
+      if (!response.ok) {
+        throw new Error(data.detail || 'Failed to create payment');
       }
       
-      await refreshUser();
-      setSelectedPackage(null);
-      setCustomAmount('');
-    } catch (error) {
-      Alert.alert('Error', 'Failed to add funds. Please try again.');
+      // Open Stripe Checkout in browser
+      if (data.checkout_url) {
+        const { Linking } = require('react-native');
+        await Linking.openURL(data.checkout_url);
+        
+        Alert.alert(
+          'Payment Started',
+          'Complete your payment in the browser. Credits will be added after successful payment.',
+          [{ text: 'OK', onPress: () => {
+            setSelectedPackage(null);
+            setCustomAmount('');
+          }}]
+        );
+      }
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to process payment. Please try again.');
     } finally {
       setIsLoading(false);
     }
