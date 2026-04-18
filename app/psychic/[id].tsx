@@ -13,6 +13,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Video, ResizeMode } from 'expo-av';
 import { COLORS, SPACING, SHADOWS } from '../../src/constants/theme';
 import { useAuth } from '../../src/context/AuthContext';
 import StartSessionModal from '../../src/components/StartSessionModal';
@@ -212,6 +213,29 @@ export default function PsychicProfileScreen() {
             </View>
           </View>
         </View>
+
+        {/* Intro Video Section */}
+        {psychic.intro_video_url && (
+          <View style={styles.section}>
+            <View style={styles.introVideoHeader}>
+              <Ionicons name="play-circle" size={22} color={COLORS.primary} />
+              <Text style={styles.sectionTitle}>Meet {psychic.name.split(' ')[0]}</Text>
+            </View>
+            <View style={styles.introVideoContainer}>
+              <Video
+                source={{ uri: psychic.intro_video_url }}
+                style={styles.introVideo}
+                useNativeControls
+                resizeMode={ResizeMode.COVER}
+                posterSource={{ uri: psychic.profile_picture }}
+                usePoster
+              />
+            </View>
+            <Text style={styles.introVideoHint}>
+              Watch this 1-minute intro to learn about their gifts
+            </Text>
+          </View>
+        )}
 
         {/* Live Services Section */}
         <View style={styles.section}>
@@ -841,5 +865,29 @@ const styles = StyleSheet.create({
   installAppFeatureText: {
     color: 'rgba(255,255,255,0.9)',
     fontSize: 12,
+  },
+  // Intro Video Styles
+  introVideoHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    marginBottom: SPACING.sm,
+  },
+  introVideoContainer: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    backgroundColor: '#000',
+  },
+  introVideo: {
+    width: '100%',
+    height: 220,
+    borderRadius: 16,
+  },
+  introVideoHint: {
+    fontSize: 12,
+    color: COLORS.textMuted,
+    textAlign: 'center',
+    marginTop: SPACING.sm,
+    fontStyle: 'italic',
   },
 });
