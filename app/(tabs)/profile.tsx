@@ -588,11 +588,12 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
+    overflow: 'hidden',
   },
   advisorAppLogo: {
-    width: 36,
-    height: 36,
-    borderRadius: 8,
+    width: 50,
+    height: 50,
+    borderRadius: 12,
   },
   bannerIcon: {
     width: 44,
